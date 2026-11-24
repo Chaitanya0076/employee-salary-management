@@ -14,7 +14,7 @@ flowchart LR
     end
 
     subgraph Api["backend/ — Express API (Render/Railway)"]
-        MW[Middleware<br/>helmet · cors · auth · validate]
+        MW[Middleware<br/>helmet · auth · validate]
         MOD[Domain modules<br/>auth · employees · compensation<br/>analytics · reference]
         ERR[Error handler]
         CACHE[[Cache interface]]
@@ -174,5 +174,6 @@ Analytics only count **ACTIVE** employees and their **current** compensation.
 
 ## 9. Configuration
 Env vars are validated at startup with Zod, so the app fails fast on bad config:
-- backend: `DATABASE_URL`, `JWT_SECRET`, `PORT`, `NODE_ENV`, `CORS_ORIGIN` (local dev only), `REDIS_URL?`
+- backend: `DATABASE_URL`, `JWT_SECRET`, `PORT`, `NODE_ENV`, `REDIS_URL?`
+- No CORS configuration: `/api` is same-origin in both environments (Vite dev-server proxy locally, Vercel rewrite in production).
 - frontend: `VITE_API_BASE_URL` (defaults to `/api`)
