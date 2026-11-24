@@ -1,8 +1,10 @@
 import { createApp } from './app.js';
 import { loadEnv } from './config/env.js';
+import { createPrismaClient, pingDatabase } from './shared/db/index.js';
 
 const env = loadEnv();
-const app = createApp();
+const prisma = createPrismaClient(env.DATABASE_URL);
+const app = createApp({ checkDatabase: () => pingDatabase(prisma) });
 
 const server = app.listen(env.PORT, () => {
   console.log(`API listening on http://localhost:${env.PORT} (${env.NODE_ENV})`);
@@ -10,7 +12,9 @@ const server = app.listen(env.PORT, () => {
 
 function shutdown(signal: NodeJS.Signals): void {
   console.log(`${signal} received, shutting down`);
-  server.close(() => process.exit(0));
+  server.close(() => {
+    void prisma.$disconnect().finally(() => process.exit(0));
+  });
   // Force exit if open connections keep the server alive.
   setTimeout(() => process.exit(1), 10_000).unref();
 }

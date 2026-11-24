@@ -1,0 +1,130 @@
+// Data model: see docs/data-model.md.
+// Constraints Prisma cannot express (CHECKs, partial unique index, trigram index)
+// live as raw SQL in the initial migration.
+
+generator client {
+  provider            = "prisma-client"
+  output              = "../src/generated/prisma"
+  moduleFormat        = "esm"
+  importFileExtension = "js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Level {
+  L1
+  L2
+  L3
+  L4
+  L5
+  L6
+}
+
+enum EmployeeStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum ComponentType {
+  BASE
+  BONUS
+  ALLOWANCE
+}
+
+enum Role {
+  HR_MANAGER
+}
+
+/// Static, HR-maintained conversion rate used only for reporting (ADR-0005).
+model FxRate {
+  currency  String    @id @db.Char(3)
+  rateToUsd Decimal   @map("rate_to_usd") @db.Decimal(18, 8)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  countries Country[]
+
+  @@map("fx_rates")
+}
+
+model Country {
+  code      String     @id @db.Char(2)
+  name      String     @unique
+  currency  String     @db.Char(3)
+  fxRate    FxRate     @relation(fields: [currency], references: [currency], onUpdate: Cascade, onDelete: Restrict)
+  employees Employee[]
+
+  @@map("countries")
+}
+
+model Department {
+  id        Int        @id @default(autoincrement())
+  name      String     @unique
+  employees Employee[]
+
+  @@map("departments")
+}
+
+model Employee {
+  id            Int            @id @default(autoincrement())
+  employeeCode  String         @unique @map("employee_code")
+  firstName     String         @map("first_name")
+  lastName      String         @map("last_name")
+  email         String         @unique
+  jobTitle      String         @map("job_title")
+  level         Level
+  hireDate      DateTime       @map("hire_date") @db.Date
+  status        EmployeeStatus @default(ACTIVE)
+  countryCode   String         @map("country_code") @db.Char(2)
+  departmentId  Int            @map("department_id")
+  createdAt     DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt     DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
+  country       Country        @relation(fields: [countryCode], references: [code], onDelete: Restrict)
+  department    Department     @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+  compensations Compensation[]
+
+  @@index([countryCode, departmentId, level])
+  @@index([departmentId])
+  @@index([status])
+  @@index([lastName, firstName])
+  @@map("employees")
+}
+
+/// One effective-dated pay period. effectiveTo is exclusive; null = current (ADR-0004).
+model Compensation {
+  id            Int                     @id @default(autoincrement())
+  employeeId    Int                     @map("employee_id")
+  currency      String                  @db.Char(3)
+  effectiveFrom DateTime                @map("effective_from") @db.Date
+  effectiveTo   DateTime?               @map("effective_to") @db.Date
+  reason        String?
+  createdAt     DateTime                @default(now()) @map("created_at") @db.Timestamptz(3)
+  employee      Employee                @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  components    CompensationComponent[]
+
+  @@index([employeeId, effectiveFrom(sort: Desc)])
+  @@map("compensations")
+}
+
+model CompensationComponent {
+  id             Int           @id @default(autoincrement())
+  compensationId Int           @map("compensation_id")
+  type           ComponentType
+  amount         Decimal       @db.Decimal(14, 2)
+  compensation   Compensation  @relation(fields: [compensationId], references: [id], onDelete: Cascade)
+
+  @@unique([compensationId, type])
+  @@map("compensation_components")
+}
+
+/// HR login account; separate from Employee.
+model User {
+  id           Int      @id @default(autoincrement())
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  name         String
+  role         Role     @default(HR_MANAGER)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@map("users")
+}

@@ -1,22 +1,36 @@
 import { Router } from 'express';
 
+export type DependencyStatus = 'up' | 'down';
+
 export interface HealthResponse {
-  status: 'ok';
+  status: 'ok' | 'degraded';
   uptimeSeconds: number;
   timestamp: string;
+  checks: { database: DependencyStatus };
 }
 
-/** Public liveness endpoint. A database check is added once Prisma is wired in. */
-export function healthRoutes(): Router {
+export interface HealthDependencies {
+  /** Resolves when the database answers; rejects otherwise. */
+  checkDatabase: () => Promise<void>;
+}
+
+/** Public health endpoint: 200 when all dependencies are up, 503 otherwise. */
+export function healthRoutes({ checkDatabase }: HealthDependencies): Router {
   const router = Router();
 
-  router.get('/', (_req, res) => {
+  router.get('/', async (_req, res) => {
+    const database: DependencyStatus = await checkDatabase().then(
+      () => 'up',
+      () => 'down',
+    );
+
     const payload: HealthResponse = {
-      status: 'ok',
+      status: database === 'up' ? 'ok' : 'degraded',
       uptimeSeconds: Math.round(process.uptime()),
       timestamp: new Date().toISOString(),
+      checks: { database },
     };
-    res.json(payload);
+    res.status(database === 'up' ? 200 : 503).json(payload);
   });
 
   return router;

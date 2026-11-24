@@ -2,11 +2,12 @@ import { z } from 'zod';
 
 /**
  * Environment variables, validated once at startup so misconfiguration fails fast.
- * New variables (DATABASE_URL, JWT_SECRET, REDIS_URL) are added in the steps that use them.
+ * New variables (JWT_SECRET, REDIS_URL) are added in the steps that use them.
  */
 const EnvSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().int().min(1).max(65535).default(4000),
+  DATABASE_URL: z.url({ protocol: /^postgres(ql)?$/ }),
 });
 
 export type Env = z.infer<typeof EnvSchema>;

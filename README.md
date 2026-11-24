@@ -23,14 +23,20 @@ Prerequisites: Node.js 24 LTS (`backend/.nvmrc`; run `nvm use` inside `backend/`
 # 1. Start PostgreSQL (add --profile cache to also start the optional Redis)
 docker compose up -d
 
-# 2. Install and configure the API
+# 2. Install and configure the API (npm install also generates the Prisma client)
 cd backend
 npm install
 cp .env.example .env
 
-# 3. Run it
+# 3. Create the schema and load demo data (10,000 employees, about 20 s)
+npm run db:migrate
+npm run db:seed
+
+# 4. Run it
 npm run dev          # http://localhost:4000/api/health
 ```
+
+The seed is deterministic (fixed faker seed and reference date) and re-runnable: it wipes all tables and reloads the same data. It also creates the HR Manager login from `SEED_HR_EMAIL` / `SEED_HR_PASSWORD` in `.env`.
 
 ### Backend scripts
 
@@ -41,3 +47,9 @@ npm run dev          # http://localhost:4000/api/health
 | `npm test` | Run unit + API tests (Vitest + Supertest) |
 | `npm run lint` / `npm run typecheck` | ESLint / TypeScript checks |
 | `npm run format` | Format with Prettier |
+| `npm run db:migrate` | Apply migrations in development (`prisma migrate dev`) |
+| `npm run db:deploy` | Apply migrations in CI/production (`prisma migrate deploy`) |
+| `npm run db:seed` | Wipe and reload the deterministic demo data |
+| `npm run db:reset` | Drop the database, re-apply all migrations, then seed |
+| `npm run db:generate` | Regenerate the Prisma client after editing `schema.prisma` |
+| `npm run db:studio` | Browse the data in Prisma Studio |

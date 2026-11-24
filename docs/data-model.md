@@ -1,6 +1,6 @@
 # Data Model
 
-PostgreSQL via Prisma. Money is `NUMERIC(14,2)` (Prisma `Decimal`) together with an ISO-4217 currency code. Floats are never used for money. All amounts are **annual**.
+PostgreSQL via Prisma (tables are plural snake_case: `employees`, `compensations`, `compensation_components`, `fx_rates`, …). Money is `NUMERIC(14,2)` (Prisma `Decimal`) together with an ISO-4217 currency code. Floats are never used for money. All amounts are **annual**.
 
 ## ER diagram
 
@@ -118,10 +118,10 @@ SELECT e.id, e.country_code, e.department_id, e.level,
        SUM(cc.amount) FILTER (WHERE cc.type = 'BASE')       AS base,
        SUM(cc.amount)                                      AS total,
        SUM(cc.amount) * fx.rate_to_usd                     AS total_usd
-FROM employee e
-JOIN compensation c            ON c.employee_id = e.id AND c.effective_to IS NULL
-JOIN compensation_component cc ON cc.compensation_id = c.id
-JOIN fx_rate fx                ON fx.currency = c.currency
+FROM employees e
+JOIN compensations c            ON c.employee_id = e.id AND c.effective_to IS NULL
+JOIN compensation_components cc ON cc.compensation_id = c.id
+JOIN fx_rates fx                ON fx.currency = c.currency
 WHERE e.status = 'ACTIVE'
 GROUP BY e.id, fx.rate_to_usd;
 ```
