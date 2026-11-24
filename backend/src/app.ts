@@ -1,15 +1,17 @@
 import cookieParser from 'cookie-parser';
 import express, { type Express } from 'express';
 import helmet from 'helmet';
+import type { AppServices } from './container.js';
 import {
   protectedAuthRoutes,
   publicAuthRoutes,
   requireAuth,
-  type AuthService,
   type LoginRateLimit,
   type SessionCookieConfig,
 } from './modules/auth/index.js';
+import { employeeRoutes } from './modules/employees/index.js';
 import { healthRoutes } from './modules/health/health.routes.js';
+import { referenceRoutes } from './modules/reference/index.js';
 import { createErrorHandler, notFound } from './shared/middleware/index.js';
 
 /**
@@ -19,7 +21,7 @@ import { createErrorHandler, notFound } from './shared/middleware/index.js';
  */
 export interface AppDependencies {
   checkDatabase: () => Promise<void>;
-  authService: AuthService;
+  services: AppServices;
   cookie: SessionCookieConfig;
   loginRateLimit?: LoginRateLimit;
   /** Reverse proxies in front of the API, so req.ip is the real client. */
@@ -29,6 +31,7 @@ export interface AppDependencies {
 
 /** Builds the Express app without listening, so tests can drive it with Supertest. */
 export function createApp(deps: AppDependencies): Express {
+  const { services } = deps;
   const app = express();
   app.set('trust proxy', deps.trustProxy ?? 0);
 
@@ -38,7 +41,7 @@ export function createApp(deps: AppDependencies): Express {
 
   const api = express.Router();
   const authDeps = {
-    service: deps.authService,
+    service: services.auth,
     cookie: deps.cookie,
     loginRateLimit: deps.loginRateLimit,
   };
@@ -48,8 +51,10 @@ export function createApp(deps: AppDependencies): Express {
   api.use('/auth', publicAuthRoutes(authDeps));
 
   // Everything registered below the guard requires a valid session (protected by default).
-  api.use(requireAuth(deps.authService));
+  api.use(requireAuth(services.auth));
   api.use('/auth', protectedAuthRoutes(authDeps));
+  api.use(referenceRoutes(services.reference));
+  api.use('/employees', employeeRoutes(services.employees));
 
   app.use('/api', api);
 

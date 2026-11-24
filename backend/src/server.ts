@@ -1,25 +1,17 @@
 import { createApp } from './app.js';
 import { loadEnv } from './config/env.js';
-import {
-  createAuthRepository,
-  createAuthService,
-  createBcryptPasswordHasher,
-  createJwtTokenService,
-} from './modules/auth/index.js';
+import { createServices } from './container.js';
 import { createPrismaClient, pingDatabase } from './shared/db/index.js';
 
 const env = loadEnv();
 const prisma = createPrismaClient(env.DATABASE_URL);
 
-const authService = createAuthService({
-  users: createAuthRepository(prisma),
-  passwords: createBcryptPasswordHasher(),
-  tokens: createJwtTokenService({ secret: env.JWT_SECRET, ttlMinutes: env.JWT_TTL_MINUTES }),
-});
-
 const app = createApp({
   checkDatabase: () => pingDatabase(prisma),
-  authService,
+  services: createServices({
+    prisma,
+    jwt: { secret: env.JWT_SECRET, ttlMinutes: env.JWT_TTL_MINUTES },
+  }),
   cookie: { secure: env.NODE_ENV === 'production' },
   trustProxy: env.TRUST_PROXY,
 });

@@ -1,5 +1,6 @@
 import type { NextFunction, Request, Response } from 'express';
 import { describe, expect, it, vi } from 'vitest';
+import { Prisma } from '../../src/generated/prisma/client.js';
 import {
   ConflictError,
   NotFoundError,
@@ -53,6 +54,23 @@ describe('errorHandler', () => {
     expect(res.body).toEqual({
       error: { code: 'VALIDATION_ERROR', message: 'Request validation failed', details },
     });
+  });
+
+  it.each([
+    ['P2002', 409, 'CONFLICT'],
+    ['P2025', 404, 'NOT_FOUND'],
+  ])('maps the Prisma %s error to %i', (code, status, errorCode) => {
+    const err = new Prisma.PrismaClientKnownRequestError('db error with internals', {
+      code,
+      clientVersion: 'test',
+    });
+
+    const { res, logger } = run(err);
+
+    expect(res.statusCode).toBe(status);
+    expect(res.body).toMatchObject({ error: { code: errorCode } });
+    expect(JSON.stringify(res.body)).not.toContain('internals');
+    expect(logger.error).not.toHaveBeenCalled();
   });
 
   it('turns malformed JSON into a 400', () => {

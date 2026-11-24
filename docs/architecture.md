@@ -134,7 +134,9 @@ sequenceDiagram
 ## 6. API endpoints
 All endpoints are under `/api`, return JSON unless noted, and require auth unless marked public.
 
-**List conventions:** `page` (default 1), `pageSize` (default 25, max 100), `sort=field:asc|desc`. The response is `{ data: [...], meta: { page, pageSize, total, totalPages } }`.
+**List conventions:** `page` (default 1), `pageSize` (default 25, max 100), `sort=field:asc|desc`. The response is `{ data: [...], meta: { page, pageSize, total, totalPages } }`. Unknown query parameters are rejected (400), so a typo never silently returns everything. Reference lists return `{ data: [...] }`.
+
+**Money in JSON** is always an exact decimal string with 2 places (`"120000.00"`); FX rates have 8 places. Dates are `YYYY-MM-DD`.
 
 | Method | Path | Purpose | Query / body |
 |---|---|---|---|
@@ -142,11 +144,11 @@ All endpoints are under `/api`, return JSON unless noted, and require auth unles
 | POST | `/auth/login` | Log in, set cookie (public) | `{ email, password }` |
 | POST | `/auth/logout` | Clear cookie (public) | – |
 | GET | `/auth/me` | Current user | – |
-| GET | `/employees` | Paginated list with current pay summary | `page, pageSize, sort` (`name`, `employeeCode`, `hireDate`, `baseSalary`, `totalUsd`), `q` (name/code/email), `country`, `department`, `level`, `status` |
-| GET | `/employees/export` | CSV of the filtered list (`text/csv`, streamed) | same filters as the list, no pagination |
+| GET | `/employees` | Paginated list; each row has `pay { currency, base, total, baseUsd, totalUsd }` | `page, pageSize, sort` (`name`, `employeeCode`, `hireDate`, `baseSalary`, `totalUsd`), `q` (substring of name/email/code), `country`, `department`, `level`, `status` |
+| GET | `/employees/export` | CSV of the filtered list (`text/csv`, UTF-8 BOM for Excel, formula-injection safe, streamed in chunks) | same filters and sort as the list, no pagination |
 | GET | `/employees/:id` | Employee details + current compensation | – |
-| POST | `/employees` | Create an employee **with** initial compensation (one transaction) | employee fields + `compensation { effectiveFrom, components[] }` |
-| PATCH | `/employees/:id` | Update employee fields, including `status` (deactivate/reactivate) | partial employee fields |
+| POST | `/employees` | Create an employee **with** initial compensation (one transaction). Code (`EMP-#####`) and currency are derived; pay starts on the hire date | employee fields + `compensation { components[] }` |
+| PATCH | `/employees/:id` | Update employee fields, including `status` (deactivate/reactivate). Country can't change (pay history is in its currency) | partial employee fields |
 | GET | `/employees/:id/compensation` | Current record + full history (newest first) | – |
 | POST | `/employees/:id/compensation` | Record a pay change (closes current, opens new) | `{ effectiveFrom, components: [{ type, amount }], reason? }` |
 | GET | `/analytics/summary` | Headcount, total annual spend (USD), avg total pay (USD) | `country?`, `department?` |
@@ -158,7 +160,9 @@ All endpoints are under `/api`, return JSON unless noted, and require auth unles
 | GET | `/countries` | Countries with currency | – |
 | GET | `/departments` | Departments | – |
 | GET | `/fx-rates` | Static FX-to-USD rates | – |
-| PUT | `/fx-rates/:currency` | Update one rate (invalidates analytics cache) | `{ rateToUsd }` |
+| PUT | `/fx-rates/:currency` | Update one rate (USD is fixed at 1; invalidates analytics cache once caching exists) | `{ rateToUsd }` |
+
+Sorting by `baseSalary` or `totalUsd` uses the **USD equivalent**, so the order is meaningful across currencies. Within one country it matches the local-amount order.
 
 Analytics only count **ACTIVE** employees and their **current** compensation.
 
@@ -170,7 +174,8 @@ Analytics only count **ACTIVE** employees and their **current** compensation.
 
 ## 8. Testing approach
 - **Unit (Vitest):** services with fake repositories. Covers compensation rules, pagination/sort parsing, money and FX conversion, CSV formatting, and cache invalidation.
-- **API (Supertest):** `app.ts` against a disposable Postgres test database (docker). Covers auth guard, validation errors, list filters, and the pay-change happy and failure paths.
+- **API without a database (Supertest):** `createApp()` with fake services. Covers health, auth and error handling.
+- **Integration (Supertest + Postgres):** the real services from the composition root (`src/container.ts`) against a separate `salary_management_test` database. A Vitest global setup creates and migrates it, and each test reloads hand-written fixtures with known values. Covers list filters/sort/pagination, export, create/update rules, and 404/409 cases.
 - **Frontend (Vitest + React Testing Library):** key components such as the filters, the pay-change form validation, and the history table.
 - Everything is deterministic: fixed seed data, no network calls, and an injected clock for "today".
 

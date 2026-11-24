@@ -3,7 +3,7 @@
 Web app for the HR Manager to manage salary data for about 10,000 employees across several countries, and to answer questions about how the organisation pays people.
 
 - **Requirements:** [docs/requirements.md](docs/requirements.md)
-- **Architecture:** [docs/architecture.md](docs/architecture.md) · **Data model:** [docs/data-model.md](docs/data-model.md) · **Decisions:** [docs/adr/](docs/adr/)
+- **Architecture:** [docs/architecture.md](docs/architecture.md) · **Data model:** [docs/data-model.md](docs/data-model.md) · **Decisions:** [docs/adr/](docs/adr/) · **Performance:** [docs/performance.md](docs/performance.md)
 - **AI prompts used to build it, step by step:** [prompts/](prompts/)
 
 ## Repository layout
@@ -56,7 +56,10 @@ curl -b cookies.txt -X POST http://localhost:4000/api/auth/logout
 |---|---|
 | `npm run dev` | Start the API with reload on change |
 | `npm run build` / `npm start` | Compile to `dist/` and run the compiled build |
-| `npm test` | Run unit + API tests (Vitest + Supertest) |
+| `npm test` | Run all tests (needs Postgres running: `docker compose up -d`) |
+| `npm run test:unit` | Unit + API tests with fake services (no database needed) |
+| `npm run test:integration` | API tests against a real `salary_management_test` database (created and migrated automatically) |
+| `npm run bench` | Measure API latency against a running server; see [docs/performance.md](docs/performance.md) |
 | `npm run lint` / `npm run typecheck` | ESLint / TypeScript checks |
 | `npm run format` | Format with Prettier |
 | `npm run db:migrate` | Apply migrations in development (`prisma migrate dev`) |

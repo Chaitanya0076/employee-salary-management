@@ -1,6 +1,7 @@
 import bcrypt from 'bcryptjs';
 import { vi } from 'vitest';
 import { createApp, type AppDependencies } from '../../src/app.js';
+import type { AppServices } from '../../src/container.js';
 import {
   SESSION_COOKIE,
   createAuthService,
@@ -31,15 +32,38 @@ export function inMemoryUsers(users: AuthUserRecord[] = [hrUser]): AuthRepositor
   };
 }
 
-export function buildTestApp(overrides: Partial<AppDependencies> = {}) {
-  const authService = createAuthService({
+export const testPasswordHasher = () => createBcryptPasswordHasher(TEST_BCRYPT_COST);
+
+export function testAuthService() {
+  return createAuthService({
     users: inMemoryUsers(),
-    passwords: createBcryptPasswordHasher(TEST_BCRYPT_COST),
+    passwords: testPasswordHasher(),
     tokens: createJwtTokenService({ secret: TEST_JWT_SECRET, ttlMinutes: 60 }),
   });
+}
+
+/** A stand-in for services a test does not exercise; any call fails loudly. */
+function unused<T extends object>(name: string): T {
+  return new Proxy({} as T, {
+    get: (_t, prop) => () => {
+      throw new Error(`${name}.${String(prop)} was called but is not set up in this test`);
+    },
+  });
+}
+
+export type TestAppOverrides = Omit<Partial<AppDependencies>, 'services'> & {
+  services?: Partial<AppServices>;
+};
+
+export function buildTestApp({ services, ...overrides }: TestAppOverrides = {}) {
   return createApp({
     checkDatabase: async () => {},
-    authService,
+    services: {
+      auth: testAuthService(),
+      reference: unused('reference'),
+      employees: unused('employees'),
+      ...services,
+    },
     cookie: { secure: false },
     logger: { error: vi.fn() },
     ...overrides,

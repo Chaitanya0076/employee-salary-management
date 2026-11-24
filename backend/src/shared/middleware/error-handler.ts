@@ -1,4 +1,5 @@
 import type { ErrorRequestHandler } from 'express';
+import { Prisma } from '../../generated/prisma/client.js';
 import { AppError, type ErrorDetail } from '../errors/index.js';
 
 export interface ErrorResponseBody {
@@ -30,6 +31,20 @@ export function createErrorHandler(logger: Logger = console): ErrorRequestHandle
     if (err instanceof AppError) {
       res.status(err.statusCode).json(body(err.code, err.message, err.details));
       return;
+    }
+
+    // Safety net for races the services can't pre-check (e.g. two concurrent creates).
+    if (err instanceof Prisma.PrismaClientKnownRequestError) {
+      if (err.code === 'P2002') {
+        res
+          .status(409)
+          .json(body('CONFLICT', 'A record with the same unique value already exists'));
+        return;
+      }
+      if (err.code === 'P2025') {
+        res.status(404).json(body('NOT_FOUND', 'Resource not found'));
+        return;
+      }
     }
 
     if (isBodyParserError(err)) {
