@@ -18,7 +18,7 @@ try {
 const SeedEnv = z.object({
   NODE_ENV: z.string().default('development'),
   DATABASE_URL: z.url({ protocol: /^postgres(ql)?$/ }),
-  SEED_HR_EMAIL: z.email(),
+  SEED_HR_EMAIL: z.string().trim().toLowerCase().pipe(z.email()),
   SEED_HR_PASSWORD: z.string().min(12, 'SEED_HR_PASSWORD must be at least 12 characters'),
   /** Seeding deletes all data, so production requires an explicit opt-in. */
   SEED_ALLOW_PRODUCTION: z.stringbool().default(false),

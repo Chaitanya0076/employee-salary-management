@@ -125,8 +125,10 @@ sequenceDiagram
 ## 5. Authentication
 - A single seeded **HR Manager** user. Passwords are hashed with **bcrypt**.
 - `POST /api/auth/login` checks credentials and sets a **JWT** (HS256, `JWT_SECRET`, 8h expiry) in an `httpOnly`, `Secure` (in production), `SameSite=Lax` cookie. The token is never readable by JS.
-- `requireAuth` middleware protects everything except `/api/health` and `/api/auth/login`.
-- Hardening, all cheap: `helmet`, rate-limited login, a JSON-only body parser with a size limit, and the same generic message for wrong email or password.
+- **Protected by default:** public routes (`/api/health`, `/api/auth/login`, `/api/auth/logout`) are mounted first, then the `requireAuth` guard, then every other router. New modules are protected automatically. Unauthenticated requests to unknown routes get 401 rather than 404, so the route list isn't revealed.
+- Logout only clears the cookie, so it stays public: a user whose session has already expired can still log out cleanly.
+- Hardening, all cheap: `helmet`; login rate limit (10 **failed** attempts per IP per 15 min, so successful logins don't count); a JSON-only body parser with a size limit; the same generic message **and timing** for wrong email or wrong password (an unknown email is still compared against a dummy bcrypt hash); the user is re-read on every request so a deleted account loses access immediately.
+- The rate limiter keeps its counts in memory (per instance). That's fine for one instance; a shared store (e.g. Redis) would be needed when scaling out.
 - No RBAC: there is one role (`HR_MANAGER`), stored on the user so it can be extended later.
 
 ## 6. API endpoints
@@ -138,7 +140,7 @@ All endpoints are under `/api`, return JSON unless noted, and require auth unles
 |---|---|---|---|
 | GET | `/health` | Liveness + DB check (public) | – |
 | POST | `/auth/login` | Log in, set cookie (public) | `{ email, password }` |
-| POST | `/auth/logout` | Clear cookie | – |
+| POST | `/auth/logout` | Clear cookie (public) | – |
 | GET | `/auth/me` | Current user | – |
 | GET | `/employees` | Paginated list with current pay summary | `page, pageSize, sort` (`name`, `employeeCode`, `hireDate`, `baseSalary`, `totalUsd`), `q` (name/code/email), `country`, `department`, `level`, `status` |
 | GET | `/employees/export` | CSV of the filtered list (`text/csv`, streamed) | same filters as the list, no pagination |
@@ -174,6 +176,6 @@ Analytics only count **ACTIVE** employees and their **current** compensation.
 
 ## 9. Configuration
 Env vars are validated at startup with Zod, so the app fails fast on bad config:
-- backend: `DATABASE_URL`, `JWT_SECRET`, `PORT`, `NODE_ENV`, `REDIS_URL?`
+- backend: `DATABASE_URL`, `JWT_SECRET` (≥ 32 chars; the example placeholder is refused in production), `JWT_TTL_MINUTES` (default 480), `TRUST_PROXY` (number of proxies in front of the API, so rate limiting sees real client IPs), `PORT`, `NODE_ENV`, `REDIS_URL?`
 - No CORS configuration: `/api` is same-origin in both environments (Vite dev-server proxy locally, Vercel rewrite in production).
 - frontend: `VITE_API_BASE_URL` (defaults to `/api`)

@@ -38,6 +38,18 @@ npm run dev          # http://localhost:4000/api/health
 
 The seed is deterministic (fixed faker seed and reference date) and re-runnable: it wipes all tables and reloads the same data. It also creates the HR Manager login from `SEED_HR_EMAIL` / `SEED_HR_PASSWORD` in `.env`.
 
+### Authentication
+
+The API has a single HR Manager login (seeded from `SEED_HR_EMAIL` / `SEED_HR_PASSWORD`). Logging in sets an httpOnly session cookie; every endpoint except health, login and logout requires it.
+
+```bash
+curl -c cookies.txt -H 'Content-Type: application/json' \
+  -d '{"email":"hr.manager@acme.example","password":"<SEED_HR_PASSWORD>"}' \
+  http://localhost:4000/api/auth/login
+curl -b cookies.txt http://localhost:4000/api/auth/me
+curl -b cookies.txt -X POST http://localhost:4000/api/auth/logout
+```
+
 ### Backend scripts
 
 | Script | What it does |

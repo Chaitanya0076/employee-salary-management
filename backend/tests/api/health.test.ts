@@ -1,9 +1,9 @@
 import request from 'supertest';
-import { describe, expect, it, vi } from 'vitest';
-import { createApp } from '../../src/app.js';
+import { describe, expect, it } from 'vitest';
+import { buildTestApp } from '../helpers/auth.js';
 
 function appWith(checkDatabase: () => Promise<void>) {
-  return createApp({ checkDatabase, logger: { error: vi.fn() } });
+  return buildTestApp({ checkDatabase });
 }
 
 const healthyApp = appWith(async () => {});
@@ -41,12 +41,12 @@ describe('GET /api/health', () => {
 });
 
 describe('API error responses', () => {
-  it('returns the standard 404 shape for unknown routes', async () => {
+  it('returns 401 (not 404) for unknown routes without a session, so routes are not revealed', async () => {
     const res = await request(healthyApp).get('/api/does-not-exist');
 
-    expect(res.status).toBe(404);
+    expect(res.status).toBe(401);
     expect(res.body).toEqual({
-      error: { code: 'NOT_FOUND', message: 'Route GET /api/does-not-exist not found' },
+      error: { code: 'UNAUTHORIZED', message: 'Authentication required' },
     });
   });
 
