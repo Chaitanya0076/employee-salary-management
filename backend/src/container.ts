@@ -3,6 +3,11 @@
  * are wired together. server.ts and the database-backed tests both use it.
  */
 import {
+  createAnalyticsRepository,
+  createAnalyticsService,
+  type AnalyticsService,
+} from './modules/analytics/index.js';
+import {
   createAuthRepository,
   createAuthService,
   createBcryptPasswordHasher,
@@ -33,6 +38,7 @@ export interface AppServices {
   reference: ReferenceService;
   employees: EmployeesService;
   compensation: CompensationService;
+  analytics: AnalyticsService;
 }
 
 export interface ServiceConfig {
@@ -65,6 +71,10 @@ export function createServices({
     compensation: createCompensationService({
       compensation: createCompensationRepository(prisma),
       clock,
+    }),
+    analytics: createAnalyticsService({
+      analytics: createAnalyticsRepository(prisma),
+      reference: referenceRepository,
     }),
   };
 }

@@ -5,6 +5,7 @@
  *
  *   npm run build && npm start        # in one terminal
  *   npm run bench                     # in another (BENCH_URL / BENCH_RUNS to override)
+ *   BENCH_ONLY=insights npm run bench # only endpoints whose label contains the text
  */
 try {
   process.loadEnvFile('.env');
@@ -15,6 +16,7 @@ try {
 const BASE = process.env['BENCH_URL'] ?? 'http://localhost:4000';
 const RUNS = Number(process.env['BENCH_RUNS'] ?? 50);
 const WARMUP = 5;
+const ONLY = process.env['BENCH_ONLY'];
 
 const ENDPOINTS: [label: string, path: string][] = [
   ['list: default (name asc)', '/api/employees'],
@@ -27,6 +29,15 @@ const ENDPOINTS: [label: string, path: string][] = [
   ['detail: GET /employees/1', '/api/employees/1'],
   ['export: all 10k rows (CSV)', '/api/employees/export'],
   ['export: country=GB (CSV)', '/api/employees/export?country=GB'],
+  ['insights: summary', '/api/analytics/summary'],
+  ['insights: summary country=IN', '/api/analytics/summary?country=IN'],
+  ['insights: by-country', '/api/analytics/by-country'],
+  ['insights: by-department', '/api/analytics/by-department'],
+  ['insights: by-level (USD)', '/api/analytics/by-level'],
+  ['insights: by-level country=IN', '/api/analytics/by-level?country=IN'],
+  ['insights: distribution (USD)', '/api/analytics/distribution'],
+  ['insights: distribution GB/L3', '/api/analytics/distribution?country=GB&level=L3'],
+  ['insights: headcount-trend', '/api/analytics/headcount-trend'],
 ];
 
 async function login(): Promise<string> {
@@ -60,7 +71,7 @@ async function main(): Promise<void> {
   console.log(`${BASE} — ${RUNS} sequential runs per endpoint after ${WARMUP} warm-up runs\n`);
   console.log('| Endpoint | p50 (ms) | p95 (ms) | max (ms) | response size |');
   console.log('|---|---:|---:|---:|---:|');
-  for (const [label, path] of ENDPOINTS) {
+  for (const [label, path] of ENDPOINTS.filter(([label]) => !ONLY || label.includes(ONLY))) {
     for (let i = 0; i < WARMUP; i++) await time(path, cookie);
     const samples: number[] = [];
     let bytes = 0;

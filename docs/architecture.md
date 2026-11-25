@@ -151,16 +151,18 @@ All endpoints are under `/api`, return JSON unless noted, and require auth unles
 | PATCH | `/employees/:id` | Update employee fields, including `status` (deactivate/reactivate). Country can't change (pay history is in its currency) | partial employee fields |
 | GET | `/employees/:id/compensation` | `{ employeeId, currency, current, history }`: `history` is every record newest first (current included), each with components, totals and USD equivalents (at today's FX rate) | – |
 | POST | `/employees/:id/compensation` | Record a pay change: in one transaction, lock the current record, close it at `effectiveFrom`, open the new one. Returns `{ compensation, previous, change: { base, total } }` (absolute and % change). 400 for a bad date or identical pay; 409 for an inactive employee or a concurrent change | `{ effectiveFrom, components: [{ type, amount }], reason? }` |
-| GET | `/analytics/summary` | Headcount, total annual spend (USD), avg total pay (USD) | `country?`, `department?` |
-| GET | `/analytics/by-country` | Per country: headcount, total spend (local + USD), avg/median/min/max base | `department?` |
-| GET | `/analytics/by-department` | Per department: headcount, total spend USD, avg/median base USD | `country?` |
-| GET | `/analytics/by-level` | Per level: avg/median/min/max base (local currency when `country` is given, otherwise USD) | `country?`, `department?` |
-| GET | `/analytics/distribution` | Base-pay histogram buckets | `country?`, `level?`, `buckets` (default 10) |
-| GET | `/analytics/headcount-trend` | Hires per year and cumulative headcount | `country?`, `department?` |
+| GET | `/analytics/summary` | `{ headcount, currency: "USD", totalPay, averagePay, medianPay }` (total compensation) | `country?`, `department?` |
+| GET | `/analytics/by-country` | `{ data }` per country, largest USD spend first: headcount, `totalPay` (local) + `totalPayUsd`, base `{ average, median, min, max }` in local currency | `department?` |
+| GET | `/analytics/by-department` | `{ currency: "USD", data }` per department: headcount, `totalPayUsd`, base `{ average, median }` in USD | `country?` |
+| GET | `/analytics/by-level` | `{ currency, data }` per level: headcount, base stats (local currency when `country` is given, otherwise USD) | `country?`, `department?` |
+| GET | `/analytics/distribution` | `{ currency, data: [{ from, to, count }] }`: base-pay histogram with readable edges (steps of 1/2/2.5/5 × 10ⁿ), at most `buckets` buckets; last bucket includes its upper edge | `country?`, `department?`, `level?`, `buckets` (2–50, default 10) |
+| GET | `/analytics/headcount-trend` | `{ data: [{ year, hires, cumulative }] }`: hires per year of today's active employees (years without hires included). There's no termination date in the model, so this shows how the current workforce was built up, not historical headcount | `country?`, `department?` |
 | GET | `/countries` | Countries with currency | – |
 | GET | `/departments` | Departments | – |
 | GET | `/fx-rates` | Static FX-to-USD rates | – |
 | PUT | `/fx-rates/:currency` | Update one rate (USD is fixed at 1; invalidates analytics cache once caching exists) | `{ rateToUsd }` |
+
+Insight endpoints reject unknown country/department values with 400 rather than returning empty results. Medians use `percentile_cont(0.5)` (the two middle values are averaged for even counts).
 
 Sorting by `baseSalary` or `totalUsd` uses the **USD equivalent**, so the order is meaningful across currencies. Within one country it matches the local-amount order.
 

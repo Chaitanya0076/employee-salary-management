@@ -40,5 +40,31 @@ The strategy is chosen per request in `employeeListSql()` (`backend/src/modules/
 - **Caching:** every list endpoint already meets the target, so there's nothing to justify a cache here (ADR-0006). Insight endpoints are measured in the analytics step.
 - **Denormalising current pay onto `employees`:** would make pay sorts about 10× faster, at the cost of keeping a copy in sync on every pay change. Not worth it while p95 is under target.
 
+## Insights API (prompt-07)
+
+Every insight endpoint aggregates in PostgreSQL over one building block: active employees joined to their open compensation, components summed per employee, and USD equivalents computed unrounded (rounded once, on the aggregate).
+
+| Endpoint | p50 | p95 |
+|---|---:|---:|
+| summary (all) | 73 ms | 102 ms |
+| summary, country=IN | 37 ms | 87 ms |
+| by-country | 83 ms | 90 ms |
+| by-department | 82 ms | 131 ms |
+| by-level (USD) | 77 ms | 95 ms |
+| by-level, country=IN | 40 ms | 78 ms |
+| distribution (USD) | 140 ms | 243 ms |
+| distribution, GB / L3 | 63 ms | 96 ms |
+| headcount-trend | 26 ms | 44 ms |
+| **whole dashboard: 6 insight calls in parallel** | **205 ms** | **282 ms** |
+
+All endpoints meet the p95 < 300 ms target. The distribution is the slowest because it runs two queries (a range query to plan readable bucket edges, then `width_bucket` counts). The two could be merged with window functions if needed.
+
+### Caching decision (ADR-0006)
+**Not enabled yet.** Each insight is well under target, and a full dashboard (six parallel calls) loads in about 200 ms (p50). The cost of a cache is real: invalidation on every employee, pay or FX change, plus a dependency to run. It would pay off if:
+- the dataset grows by about 10× (aggregates scale roughly linearly), or
+- many HR users load the dashboard at once (the aggregates are CPU-bound in Postgres).
+
+Both are plausible next steps, and the cache interface in ADR-0006 is designed for them. A later step will add it behind `REDIS_URL` and compare against these numbers.
+
 ## Test suite
 Integration tests originally reset the database with `TRUNCATE ... RESTART IDENTITY`, which took 200–400 ms per test because Postgres recreates and fsyncs the table files. Switching to `DELETE` plus sequence restarts and a single `createMany` per table brought the reset to about 50 ms, and the integration suite from 35 s to about 12 s.
