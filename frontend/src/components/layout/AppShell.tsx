@@ -1,7 +1,8 @@
 import { Menu } from 'lucide-react';
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import { Outlet } from 'react-router';
 import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
   Sheet,
   SheetContent,
@@ -13,6 +14,15 @@ import {
 import { useSession } from '@/features/auth/session';
 import { MainNav } from './MainNav';
 import { UserMenu } from './UserMenu';
+
+function PageSkeleton() {
+  return (
+    <div className="grid gap-4" role="status" aria-label="Loading page">
+      <Skeleton className="h-8 w-48" />
+      <Skeleton className="h-64 w-full" />
+    </div>
+  );
+}
 
 function Brand() {
   return <span className="text-base font-semibold tracking-tight">ACME Salary</span>;
@@ -72,7 +82,9 @@ export function AppShell() {
         </header>
 
         <main id="main" tabIndex={-1} className="flex-1 p-4 outline-none md:p-8">
-          <Outlet />
+          <Suspense fallback={<PageSkeleton />}>
+            <Outlet />
+          </Suspense>
         </main>
       </div>
     </div>

@@ -22,8 +22,8 @@ export default tseslint.config(
     },
   },
   {
-    // Generated shadcn/ui components export variants alongside components.
-    files: ['src/components/ui/**'],
+    // Generated shadcn/ui components and the route table (lazy page declarations).
+    files: ['src/components/ui/**', 'src/routes.tsx'],
     rules: { 'react-refresh/only-export-components': 'off' },
   },
   prettier,
