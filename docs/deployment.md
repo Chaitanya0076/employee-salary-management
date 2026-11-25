@@ -41,24 +41,20 @@ From now on, every push to `main` deploys the API **after the CI checks pass** (
 
 The seed **wipes all data** and loads 10,000 deterministic employees plus the HR Manager login. Free Render instances have no shell, so run it locally against the database's **external** URL:
 
-1. Render dashboard → `salary-management-db` → **Connect** → copy the **External Database URL**.
-2. Run the seed, typing the secrets at prompts so they don't land in your shell history:
+1. Render dashboard → `salary-management-db` → **Connect** → copy the **External Database URL**. If it has no `?sslmode=require` at the end, you'll add it when pasting.
+2. From `backend/`, run the guided script. (The seed itself also refuses production without `SEED_ALLOW_PRODUCTION=true`, and refuses the example password from `.env.example`. It takes a few minutes over the internet.) It asks for the URL, email and password at **hidden prompts** (paste and press Enter; nothing is shown), adds `?sslmode=require` if missing, shows the target with the password masked, and asks you to type `seed` before wiping anything:
 
 ```bash
 cd backend
 npm ci
-read -rs DATABASE_URL && export DATABASE_URL          # paste the external URL, append ?sslmode=require
-read -r  SEED_HR_EMAIL && export SEED_HR_EMAIL        # e.g. hr.manager@your-company.example
-read -rs SEED_HR_PASSWORD && export SEED_HR_PASSWORD  # strong, at least 12 characters
-NODE_ENV=production SEED_ALLOW_PRODUCTION=true npm run db:seed
-unset DATABASE_URL SEED_HR_PASSWORD
+bash scripts/seed-production.sh
 ```
 
-The seed refuses to run against production without `SEED_ALLOW_PRODUCTION=true`, and refuses the example password from `.env.example`. It takes a few minutes over the internet.
+**Never put the URL or password on the command line itself**: it would be saved in your shell history. If that happens, or the URL ends up in a chat, rotate the credential in the Render dashboard (or re-create the free database), and remove the history entry with `history -d <number>` (find the number with `history | grep render.com`).
 
 ## 3. Deploy the frontend (Vercel)
 
-1. If the Render URL differs from `https://salary-management-api.onrender.com`, update the `destination` in `frontend/vercel.json`, then commit and push.
+1. `frontend/vercel.json` must rewrite to the Render URL. The first deploy got `https://salary-management-api-3aap.onrender.com` (Render adds a suffix when a name is taken), and `vercel.json` already points there. If you re-create the service, update the `destination`, then commit and push.
 2. On [vercel.com](https://vercel.com), sign in with GitHub, choose **Add New → Project**, and import this repository.
 3. Set **Root Directory** to `frontend`. Build settings come from `vercel.json` (Vite, `npm ci`, `npm run build`, output `dist`). Set **Node.js Version** to **24.x** in the project settings if it isn't picked up from `engines`.
 4. **Deploy.** Vercel redeploys on every push to `main` and creates preview deployments for pull requests.
@@ -71,7 +67,7 @@ The login rate limit counts attempts per client IP. Express finds the real clien
 - set too low, every user appears to share the proxy's IP and gets blocked together
 - set too high, a client can forge its own IP
 
-`render.yaml` defaults to `2` (Vercel's rewrite plus Render's router). Confirm it against one real request:
+`render.yaml` defaults to `2`, but the first deploy suggests **3**. A request sent straight to the Render URL was logged with a Cloudflare address (`104.22.x.x`) rather than the caller's IP, so Render itself adds two proxies (Cloudflare and its router), and Vercel's rewrite adds a third. Confirm it against one real request through the Vercel app:
 
 1. Render → `salary-management-api` → **Environment**: set `LOG_FORWARDED_FOR=true`. The service redeploys.
 2. Find your public IP (e.g. search "what is my IP"), then open the Vercel app and attempt a login.

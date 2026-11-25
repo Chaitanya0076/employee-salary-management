@@ -10,6 +10,7 @@ export interface RequestLogOptions {
 /**
  * One JSON line per request: method, path (without the query string, which can
  * contain names), status, duration and client IP as resolved via `trust proxy`.
+ * Successful health checks are skipped so platform probes don't drown real traffic.
  */
 export function requestLogger({
   includeForwardedFor = false,
@@ -19,6 +20,8 @@ export function requestLogger({
   return (req, res, next) => {
     const started = now();
     res.on('finish', () => {
+      // The platform probes /api/health every few seconds; only log it when it fails.
+      if (req.originalUrl.startsWith('/api/health') && res.statusCode < 400) return;
       const entry: Record<string, unknown> = {
         time: new Date().toISOString(),
         method: req.method,

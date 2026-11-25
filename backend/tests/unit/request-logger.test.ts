@@ -18,6 +18,9 @@ function appWith(options: Parameters<typeof requestLogger>[0], trustProxy = 0) {
   app.get('/api/employees', (_req, res) => {
     res.status(200).json({ ok: true });
   });
+  app.get('/api/health', (req, res) => {
+    res.status(req.query['down'] ? 503 : 200).json({});
+  });
   return { app, lines };
 }
 
@@ -63,5 +66,15 @@ describe('requestLogger', () => {
       .expect(200);
 
     expect(lines[0]).not.toHaveProperty('forwardedFor');
+  });
+
+  it('skips successful health checks but logs failing ones', async () => {
+    const { app, lines } = appWith({});
+
+    await request(app).get('/api/health').expect(200);
+    await request(app).get('/api/health?down=1').expect(503);
+
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toMatchObject({ path: '/api/health', status: 503 });
   });
 });

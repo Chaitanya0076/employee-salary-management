@@ -38,8 +38,9 @@ services:
         generateValue: true # random 256-bit value, never committed
       - key: JWT_TTL_MINUTES
         value: "480"
-      # Proxies in front of the app: Vercel's rewrite + Render's router. Verify after the first
-      # deploy with LOG_FORWARDED_FOR (docs/deployment.md, "Calibrate TRUST_PROXY").
+      # Proxies in front of the app. The first deploy showed Render adds two (Cloudflare + its
+      # router), so through Vercel it is likely 3. Confirm with LOG_FORWARDED_FOR
+      # (docs/deployment.md, step 4) before changing this value.
       - key: TRUST_PROXY
         value: "2"
       - key: LOG_FORWARDED_FOR
