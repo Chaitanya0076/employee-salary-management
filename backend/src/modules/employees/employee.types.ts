@@ -1,5 +1,8 @@
 import type { EmployeeStatus, Level } from '../../generated/prisma/enums.js';
-import type { ComponentTypeName } from '../compensation/compensation.rules.js';
+import type {
+  CompensationComponentDto,
+  CompensationRecord,
+} from '../compensation/compensation.types.js';
 
 export type { EmployeeStatus, Level };
 
@@ -28,21 +31,9 @@ export interface EmployeeListItem {
   pay: PaySummary | null;
 }
 
-export interface CompensationComponentDto {
-  type: ComponentTypeName;
-  amount: string;
-}
-
-export interface CurrentCompensation extends PaySummary {
-  id: number;
-  effectiveFrom: string;
-  reason: string | null;
-  components: CompensationComponentDto[];
-}
-
 export interface EmployeeDetail extends Omit<EmployeeListItem, 'pay' | 'country'> {
   country: { code: string; name: string; currency: string };
-  currentCompensation: CurrentCompensation | null;
+  currentCompensation: CompensationRecord | null;
   createdAt: string;
   updatedAt: string;
 }

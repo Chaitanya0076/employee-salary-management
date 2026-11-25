@@ -62,6 +62,7 @@ export function buildTestApp({ services, ...overrides }: TestAppOverrides = {}) 
       auth: testAuthService(),
       reference: unused('reference'),
       employees: unused('employees'),
+      compensation: unused('compensation'),
       ...services,
     },
     cookie: { secure: false },

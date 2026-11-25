@@ -149,8 +149,8 @@ All endpoints are under `/api`, return JSON unless noted, and require auth unles
 | GET | `/employees/:id` | Employee details + current compensation | – |
 | POST | `/employees` | Create an employee **with** initial compensation (one transaction). Code (`EMP-#####`) and currency are derived; pay starts on the hire date | employee fields + `compensation { components[] }` |
 | PATCH | `/employees/:id` | Update employee fields, including `status` (deactivate/reactivate). Country can't change (pay history is in its currency) | partial employee fields |
-| GET | `/employees/:id/compensation` | Current record + full history (newest first) | – |
-| POST | `/employees/:id/compensation` | Record a pay change (closes current, opens new) | `{ effectiveFrom, components: [{ type, amount }], reason? }` |
+| GET | `/employees/:id/compensation` | `{ employeeId, currency, current, history }`: `history` is every record newest first (current included), each with components, totals and USD equivalents (at today's FX rate) | – |
+| POST | `/employees/:id/compensation` | Record a pay change: in one transaction, lock the current record, close it at `effectiveFrom`, open the new one. Returns `{ compensation, previous, change: { base, total } }` (absolute and % change). 400 for a bad date or identical pay; 409 for an inactive employee or a concurrent change | `{ effectiveFrom, components: [{ type, amount }], reason? }` |
 | GET | `/analytics/summary` | Headcount, total annual spend (USD), avg total pay (USD) | `country?`, `department?` |
 | GET | `/analytics/by-country` | Per country: headcount, total spend (local + USD), avg/median/min/max base | `department?` |
 | GET | `/analytics/by-department` | Per department: headcount, total spend USD, avg/median base USD | `country?` |

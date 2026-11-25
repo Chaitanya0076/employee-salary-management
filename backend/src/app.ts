@@ -9,6 +9,7 @@ import {
   type LoginRateLimit,
   type SessionCookieConfig,
 } from './modules/auth/index.js';
+import { compensationRoutes } from './modules/compensation/index.js';
 import { employeeRoutes } from './modules/employees/index.js';
 import { healthRoutes } from './modules/health/health.routes.js';
 import { referenceRoutes } from './modules/reference/index.js';
@@ -54,6 +55,7 @@ export function createApp(deps: AppDependencies): Express {
   api.use(requireAuth(services.auth));
   api.use('/auth', protectedAuthRoutes(authDeps));
   api.use(referenceRoutes(services.reference));
+  api.use('/employees/:id/compensation', compensationRoutes(services.compensation));
   api.use('/employees', employeeRoutes(services.employees));
 
   app.use('/api', api);

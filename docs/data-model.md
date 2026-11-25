@@ -87,11 +87,12 @@ erDiagram
 | R1 | A compensation has **exactly one `BASE`** component, and at most one of each other type. | Service validation + `UNIQUE (compensation_id, type)` |
 | R2 | Every amount is **> 0**, with 2 decimal places. | Zod + `CHECK (amount > 0)` |
 | R3 | `Compensation.currency` **equals the employee's country currency**. | Service (derived, never accepted from the client) |
-| R4 | An employee's compensation periods **never overlap**. | Service, inside a transaction. A pay change must start **after** the current record's `effective_from`. The current record is closed with `effective_to = new.effective_from`. |
+| R4 | An employee's compensation periods **never overlap**. | Service, inside a transaction that locks the current record (`SELECT … FOR UPDATE`). A pay change must start **after** the current record's `effective_from`. The current record is closed with `effective_to = new.effective_from`. A concurrent change for the same employee waits on the lock, then finds no open record and gets 409. |
 | R5 | **Current pay** = the record with `effective_to IS NULL`. There is **at most one** per employee. | Partial unique index `UNIQUE (employee_id) WHERE effective_to IS NULL` |
 | R6 | v1 allows pay changes effective **today or earlier** (no future-dated changes), and no back-dating before the current record. | Service + injected clock. This keeps rule R5's "open-ended = current" true. Scheduled future raises are future work. |
 | R7 | Every employee has a compensation from creation. | `POST /employees` creates employee + first compensation in one transaction. |
 | R8 | `effective_to > effective_from` when set. | `CHECK` constraint |
+| R9 | Pay changes only for **ACTIVE** employees, and the new pay must differ from the current pay. | Service (409 for inactive, 400 for identical) |
 
 Constraints Prisma can't express (partial unique index, CHECKs, trigram index) are added as raw SQL in the migration.
 

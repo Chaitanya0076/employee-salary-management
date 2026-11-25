@@ -1,13 +1,7 @@
-import { Prisma } from '../../generated/prisma/client.js';
+import type { Prisma } from '../../generated/prisma/client.js';
 import type { PrismaClient } from '../../shared/db/index.js';
-import {
-  convertAmount,
-  fromIsoDate,
-  sumAmounts,
-  toIsoDate,
-  toMoneyString,
-} from '../../shared/utils/index.js';
-import type { ComponentTypeName } from '../compensation/compensation.rules.js';
+import { fromIsoDate, toIsoDate, toMoneyString } from '../../shared/utils/index.js';
+import { toCompensationRecord } from '../compensation/compensation.mapper.js';
 import { employeeListSql, employeeWhereSql } from './employee.sql.js';
 import type {
   EmployeeChanges,
@@ -99,27 +93,9 @@ type DetailRow = Prisma.EmployeeGetPayload<{ include: typeof DETAIL_INCLUDE }>;
 
 function toDetail(row: DetailRow): EmployeeDetail {
   const current = row.compensations[0];
-  const rate = row.country.fxRate.rateToUsd;
-  let currentCompensation: EmployeeDetail['currentCompensation'] = null;
-  if (current) {
-    const amounts = current.components.map((c) => c.amount);
-    const base = current.components.find((c) => c.type === 'BASE')?.amount ?? new Prisma.Decimal(0);
-    const total = sumAmounts(amounts);
-    currentCompensation = {
-      id: current.id,
-      currency: current.currency,
-      effectiveFrom: toIsoDate(current.effectiveFrom),
-      reason: current.reason,
-      components: current.components.map((c) => ({
-        type: c.type as ComponentTypeName,
-        amount: toMoneyString(c.amount),
-      })),
-      base: toMoneyString(base),
-      total: toMoneyString(total),
-      baseUsd: toMoneyString(convertAmount(base, rate)),
-      totalUsd: toMoneyString(convertAmount(total, rate)),
-    };
-  }
+  const currentCompensation = current
+    ? toCompensationRecord(current, row.country.fxRate.rateToUsd)
+    : null;
   return {
     id: row.id,
     employeeCode: row.employeeCode,

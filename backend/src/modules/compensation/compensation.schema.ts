@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { MoneyAmount } from '../../shared/utils/index.js';
+import { IdParam, MoneyAmount } from '../../shared/utils/index.js';
 import { COMPONENT_TYPES, componentIssues } from './compensation.rules.js';
 
 export const ComponentInput = z.strictObject({
@@ -17,4 +17,19 @@ export const ComponentsInput = z
     }
   });
 
+export const EmployeeCompensationParams = z.object({ id: IdParam });
+
+export const PayChangeBody = z.strictObject({
+  effectiveFrom: z.iso.date('Must be a date in YYYY-MM-DD format'),
+  components: ComponentsInput,
+  reason: z
+    .string()
+    .trim()
+    .max(200)
+    .optional()
+    .transform((v) => v || undefined),
+});
+
 export type ComponentInput = z.infer<typeof ComponentInput>;
+export type EmployeeCompensationParams = z.infer<typeof EmployeeCompensationParams>;
+export type PayChangeBody = z.infer<typeof PayChangeBody>;

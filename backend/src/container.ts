@@ -11,6 +11,11 @@ import {
   type PasswordHasher,
 } from './modules/auth/index.js';
 import {
+  createCompensationRepository,
+  createCompensationService,
+  type CompensationService,
+} from './modules/compensation/index.js';
+import {
   createEmployeeRepository,
   createEmployeesService,
   type EmployeesService,
@@ -27,6 +32,7 @@ export interface AppServices {
   auth: AuthService;
   reference: ReferenceService;
   employees: EmployeesService;
+  compensation: CompensationService;
 }
 
 export interface ServiceConfig {
@@ -54,6 +60,10 @@ export function createServices({
     employees: createEmployeesService({
       employees: createEmployeeRepository(prisma),
       reference: referenceRepository,
+      clock,
+    }),
+    compensation: createCompensationService({
+      compensation: createCompensationRepository(prisma),
       clock,
     }),
   };
