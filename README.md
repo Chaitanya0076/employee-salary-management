@@ -5,6 +5,7 @@
 A web app for ACME's **HR Manager** to manage salary data for about **10,000 employees across six countries**, replacing spreadsheets, and to answer questions about how the company pays people.
 
 **Live demo:** https://employee-salary-management-lovat.vercel.app
+**Video walkthrough:** https://drive.google.com/file/d/1fE85ALNYwq2nIo-EtCyJkkEAeA6X9lGP/view?usp=sharing
 Demo credentials are shared privately with reviewers (they're not in the repo). The API runs on Render's free tier, so the first request after a quiet spell can take about a minute while it wakes up.
 
 ![Dashboard](docs/screenshots/dashboard.jpg)
