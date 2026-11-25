@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiFetch } from '@/lib/api-client';
 
 export interface Country {
@@ -39,5 +39,30 @@ export function useDepartments() {
     queryKey: referenceKeys.departments,
     queryFn: async () => (await apiFetch<{ data: Department[] }>('/departments')).data,
     staleTime: RARELY_CHANGES,
+  });
+}
+
+export function useFxRates() {
+  return useQuery({
+    queryKey: referenceKeys.fxRates,
+    queryFn: async () => (await apiFetch<{ data: FxRate[] }>('/fx-rates')).data,
+  });
+}
+
+export function useUpdateFxRate() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: ({ currency, rateToUsd }: { currency: string; rateToUsd: string }) =>
+      apiFetch<FxRate>(`/fx-rates/${currency}`, { method: 'PUT', body: { rateToUsd } }),
+    onSuccess: (updated) => {
+      client.setQueryData<FxRate[]>(referenceKeys.fxRates, (rates) =>
+        rates?.map((r) => (r.currency === updated.currency ? updated : r)),
+      );
+      // Every USD figure depends on the rates: insights and employee pay summaries.
+      return Promise.all([
+        client.invalidateQueries({ queryKey: ['analytics'] }),
+        client.invalidateQueries({ queryKey: ['employees'] }),
+      ]);
+    },
   });
 }

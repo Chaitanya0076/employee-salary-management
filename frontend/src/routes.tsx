@@ -6,9 +6,15 @@ import { RequireAuth } from '@/features/auth/RequireAuth';
 import { NotFoundPage } from '@/pages';
 
 // Route-level code splitting: each page is its own chunk, loaded on first visit.
-const DashboardPage = lazy(() => import('@/pages').then((m) => ({ default: m.DashboardPage })));
-const InsightsPage = lazy(() => import('@/pages').then((m) => ({ default: m.InsightsPage })));
-const FxRatesPage = lazy(() => import('@/pages').then((m) => ({ default: m.FxRatesPage })));
+const DashboardPage = lazy(() =>
+  import('@/features/insights/DashboardPage').then((m) => ({ default: m.DashboardPage })),
+);
+const InsightsPage = lazy(() =>
+  import('@/features/insights/InsightsPage').then((m) => ({ default: m.InsightsPage })),
+);
+const FxRatesPage = lazy(() =>
+  import('@/features/settings/FxRatesPage').then((m) => ({ default: m.FxRatesPage })),
+);
 const EmployeesListPage = lazy(() =>
   import('@/features/employees/EmployeesListPage').then((m) => ({ default: m.EmployeesListPage })),
 );

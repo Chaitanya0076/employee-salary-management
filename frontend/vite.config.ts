@@ -26,5 +26,7 @@ export default defineConfig({
     clearMocks: true,
     restoreMocks: true,
     css: false,
+    // Above Testing Library's 5s async timeout (src/test/setup.ts), so failures report the real error.
+    testTimeout: 15_000,
   },
 });
