@@ -10,7 +10,7 @@ Web app for the HR Manager to manage salary data for about 10,000 employees acro
 
 ```
 backend/    Express + TypeScript REST API
-frontend/   React + Vite SPA (coming in a later step)
+frontend/   React + Vite SPA
 docs/       requirements, architecture, data model, ADRs
 prompts/    prompt-NN.md, one per build step
 ```
@@ -37,6 +37,30 @@ npm run dev          # http://localhost:4000/api/health
 ```
 
 The seed is deterministic (fixed faker seed and reference date) and re-runnable: it wipes all tables and reloads the same data. It also creates the HR Manager login from `SEED_HR_EMAIL` / `SEED_HR_PASSWORD` in `.env`.
+
+## Getting started (frontend)
+
+The frontend is an independent Vite + React app. In development the Vite server proxies `/api` to the backend on `http://localhost:4000`, so the browser only talks to one origin and the session cookie just works (no CORS).
+
+```bash
+# with the backend running (see above)
+cd frontend
+nvm use                # Node 24
+npm install
+npm run dev            # http://localhost:5173 (sign in with SEED_HR_EMAIL / SEED_HR_PASSWORD)
+```
+
+Set `API_PROXY_TARGET` to proxy to a different backend URL. In production, `frontend/vercel.json` rewrites `/api/*` to the deployed API (the host is filled in during deployment) and falls back to `index.html` for client-side routes.
+
+### Frontend scripts
+
+| Script | What it does |
+|---|---|
+| `npm run dev` | Vite dev server with the `/api` proxy |
+| `npm run build` / `npm run preview` | Type-check and build to `dist/`, then serve the build locally |
+| `npm test` | Component and unit tests (Vitest + React Testing Library, jsdom) |
+| `npm run lint` / `npm run typecheck` | ESLint / TypeScript checks |
+| `npm run format` | Format with Prettier |
 
 ### Authentication
 
