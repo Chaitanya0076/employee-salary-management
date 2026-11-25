@@ -38,10 +38,10 @@ services:
         generateValue: true # random 256-bit value, never committed
       - key: JWT_TTL_MINUTES
         value: "480"
-      # Proxies in front of the app. The first deploy showed Render adds two (Cloudflare + its
-      # router), so through Vercel it is likely 3. Confirm with LOG_FORWARDED_FOR
-      # (docs/deployment.md, step 4) before changing this value.
+      # Hops between the browser and the app, measured on the live deploy (docs/deployment.md,
+      # step 4): X-Forwarded-For = "<client>, <Vercel>, <Cloudflare>, <Render internal>", and
+      # Express also counts the socket peer, so the client is 4 hops away.
       - key: TRUST_PROXY
-        value: "2"
+        value: "4"
       - key: LOG_FORWARDED_FOR
         value: "false"
