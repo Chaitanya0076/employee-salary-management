@@ -84,6 +84,25 @@ describe('POST /api/auth/login', () => {
   });
 });
 
+describe('login rate limit behind proxies', () => {
+  it('counts attempts per real client IP when TRUST_PROXY matches the proxy chain', async () => {
+    // Production path: browser -> Vercel rewrite -> Render router -> app (TRUST_PROXY=2).
+    const app = buildTestApp({ trustProxy: 2, loginRateLimit: { limit: 2, windowMs: 60_000 } });
+    const failFrom = (clientIp: string) =>
+      request(app)
+        .post('/api/auth/login')
+        .set('X-Forwarded-For', `${clientIp}, 198.51.100.2`)
+        .send({ ...credentials, password: 'nope' });
+
+    await failFrom('203.0.113.1').expect(401);
+    await failFrom('203.0.113.1').expect(401);
+    await failFrom('203.0.113.1').expect(429);
+
+    // A different client behind the same proxies has its own allowance.
+    await failFrom('203.0.113.99').expect(401);
+  });
+});
+
 describe('GET /api/auth/me', () => {
   it('returns the current user with a valid session', async () => {
     const { app, cookie } = await login();

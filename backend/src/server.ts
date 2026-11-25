@@ -14,6 +14,7 @@ const app = createApp({
   }),
   cookie: { secure: env.NODE_ENV === 'production' },
   trustProxy: env.TRUST_PROXY,
+  requestLog: env.NODE_ENV === 'test' ? undefined : { includeForwardedFor: env.LOG_FORWARDED_FOR },
 });
 
 const server = app.listen(env.PORT, () => {

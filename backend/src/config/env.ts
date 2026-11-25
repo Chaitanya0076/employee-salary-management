@@ -23,6 +23,11 @@ const EnvSchema = z
      * Needed so rate limiting sees the real client IP. 0 = connect directly.
      */
     TRUST_PROXY: z.coerce.number().int().min(0).max(5).default(0),
+    /**
+     * Adds the raw X-Forwarded-For chain to access logs. Turn on briefly after a
+     * deploy to calibrate TRUST_PROXY (docs/deployment.md), then off again.
+     */
+    LOG_FORWARDED_FOR: z.stringbool().default(false),
   })
   .refine((env) => env.NODE_ENV !== 'production' || !/change-me/i.test(env.JWT_SECRET), {
     path: ['JWT_SECRET'],

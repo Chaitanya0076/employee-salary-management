@@ -181,8 +181,11 @@ Analytics only count **ACTIVE** employees and their **current** compensation.
 - **Frontend (Vitest + React Testing Library):** key components such as the filters, the pay-change form validation, and the history table.
 - Everything is deterministic: fixed seed data, no network calls, and an injected clock for "today".
 
-## 9. Configuration
+## 9. Configuration and operations
+- Access log: one JSON line per request (method, path without the query string, status, duration, client IP), skipped in tests.
+- Deployment (Render + Vercel), CI and rollback: [deployment.md](deployment.md).
+
 Env vars are validated at startup with Zod, so the app fails fast on bad config:
-- backend: `DATABASE_URL`, `JWT_SECRET` (≥ 32 chars; the example placeholder is refused in production), `JWT_TTL_MINUTES` (default 480), `TRUST_PROXY` (number of proxies in front of the API, so rate limiting sees real client IPs), `PORT`, `NODE_ENV`, `REDIS_URL?`
+- backend: `DATABASE_URL`, `JWT_SECRET` (≥ 32 chars; the example placeholder is refused in production), `JWT_TTL_MINUTES` (default 480), `TRUST_PROXY` (number of proxies in front of the API, so rate limiting sees real client IPs; `2` in production, calibrated as in [deployment.md](deployment.md)), `LOG_FORWARDED_FOR` (adds the raw `X-Forwarded-For` chain to access logs while calibrating), `PORT`, `NODE_ENV`
 - No CORS configuration: `/api` is same-origin in both environments (Vite dev-server proxy locally, Vercel rewrite in production).
 - frontend: `VITE_API_BASE_URL` (defaults to `/api`)

@@ -1,0 +1,46 @@
+# Render Blueprint: the API (backend/) and its PostgreSQL database.
+# Step-by-step guide, including seeding and rollback: docs/deployment.md
+# The frontend is deployed separately on Vercel (frontend/vercel.json).
+
+databases:
+  - name: salary-management-db
+    plan: free # expires after 30 days on Render's free tier; see docs/deployment.md
+    region: singapore
+    databaseName: salary_management
+    user: salary
+    postgresMajorVersion: "16"
+
+services:
+  - type: web
+    name: salary-management-api
+    runtime: node
+    plan: free
+    region: singapore # same region as the database
+    rootDir: backend
+    # Dev dependencies are needed to compile TypeScript and to run `prisma migrate deploy`.
+    buildCommand: npm ci --include=dev && npm run build
+    # Migrations run at start: they are idempotent, and the free plan has one instance and
+    # no pre-deploy step. On a paid plan, move them to `preDeployCommand: npx prisma migrate deploy`.
+    startCommand: npm run start:migrate
+    healthCheckPath: /api/health
+    # Deploy only after the GitHub Actions CI checks pass on the commit.
+    autoDeployTrigger: checksPass
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: "24"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: salary-management-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true # random 256-bit value, never committed
+      - key: JWT_TTL_MINUTES
+        value: "480"
+      # Proxies in front of the app: Vercel's rewrite + Render's router. Verify after the first
+      # deploy with LOG_FORWARDED_FOR (docs/deployment.md, "Calibrate TRUST_PROXY").
+      - key: TRUST_PROXY
+        value: "2"
+      - key: LOG_FORWARDED_FOR
+        value: "false"

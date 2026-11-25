@@ -1,9 +1,11 @@
 # ACME Salary Management
 
+[![CI](https://github.com/Chaitanya0076/employee-salary-management/actions/workflows/ci.yml/badge.svg)](https://github.com/Chaitanya0076/employee-salary-management/actions/workflows/ci.yml)
+
 Web app for the HR Manager to manage salary data for about 10,000 employees across several countries, and to answer questions about how the organisation pays people.
 
 - **Requirements:** [docs/requirements.md](docs/requirements.md)
-- **Architecture:** [docs/architecture.md](docs/architecture.md) · **Data model:** [docs/data-model.md](docs/data-model.md) · **Decisions:** [docs/adr/](docs/adr/) · **Performance:** [docs/performance.md](docs/performance.md)
+- **Architecture:** [docs/architecture.md](docs/architecture.md) · **Data model:** [docs/data-model.md](docs/data-model.md) · **Decisions:** [docs/adr/](docs/adr/) · **Performance:** [docs/performance.md](docs/performance.md) · **Deployment:** [docs/deployment.md](docs/deployment.md)
 - **AI prompts used to build it, step by step:** [prompts/](prompts/)
 
 ## Repository layout
@@ -13,6 +15,8 @@ backend/    Express + TypeScript REST API
 frontend/   React + Vite SPA
 docs/       requirements, architecture, data model, ADRs
 prompts/    prompt-NN.md, one per build step
+render.yaml Render Blueprint (API + PostgreSQL); the frontend deploys on Vercel
+.github/    CI: lint, typecheck, unit + integration tests and build for both apps
 ```
 
 ## Getting started (backend)

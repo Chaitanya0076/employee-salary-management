@@ -21,7 +21,8 @@
     "db:studio": "prisma studio",
     "test:unit": "vitest run --project unit",
     "test:integration": "vitest run --project integration",
-    "bench": "tsx scripts/benchmark.ts"
+    "bench": "tsx scripts/benchmark.ts",
+    "start:migrate": "prisma migrate deploy && node --env-file-if-exists=.env dist/server.js"
   },
   "license": "UNLICENSED",
   "type": "module",

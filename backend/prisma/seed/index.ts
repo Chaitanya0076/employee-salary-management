@@ -5,8 +5,8 @@
  *   npm run db:seed
  */
 import bcrypt from 'bcryptjs';
-import { z } from 'zod';
 import { createPrismaClient } from '../../src/shared/db/index.js';
+import { parseSeedEnv } from './config.js';
 import { DEFAULT_SEED_OPTIONS, generateSeedData } from './generate.js';
 
 try {
@@ -14,15 +14,6 @@ try {
 } catch {
   // rely on the real environment
 }
-
-const SeedEnv = z.object({
-  NODE_ENV: z.string().default('development'),
-  DATABASE_URL: z.url({ protocol: /^postgres(ql)?$/ }),
-  SEED_HR_EMAIL: z.string().trim().toLowerCase().pipe(z.email()),
-  SEED_HR_PASSWORD: z.string().min(12, 'SEED_HR_PASSWORD must be at least 12 characters'),
-  /** Seeding deletes all data, so production requires an explicit opt-in. */
-  SEED_ALLOW_PRODUCTION: z.stringbool().default(false),
-});
 
 const BATCH_SIZE = 5_000;
 const BCRYPT_COST = 12;
@@ -36,16 +27,7 @@ function chunks<T>(rows: readonly T[], size = BATCH_SIZE): T[][] {
 }
 
 async function main(): Promise<void> {
-  const parsed = SeedEnv.safeParse(process.env);
-  if (!parsed.success) {
-    throw new Error(`Invalid seed configuration:\n${z.prettifyError(parsed.error)}`);
-  }
-  const env = parsed.data;
-  if (env.NODE_ENV === 'production' && !env.SEED_ALLOW_PRODUCTION) {
-    throw new Error(
-      'Refusing to wipe and seed a production database without SEED_ALLOW_PRODUCTION=true',
-    );
-  }
+  const env = parseSeedEnv(process.env);
 
   const started = performance.now();
   const data = generateSeedData(DEFAULT_SEED_OPTIONS);

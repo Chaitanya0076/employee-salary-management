@@ -14,7 +14,12 @@ import { compensationRoutes } from './modules/compensation/index.js';
 import { employeeRoutes } from './modules/employees/index.js';
 import { healthRoutes } from './modules/health/health.routes.js';
 import { referenceRoutes } from './modules/reference/index.js';
-import { createErrorHandler, notFound } from './shared/middleware/index.js';
+import {
+  createErrorHandler,
+  notFound,
+  requestLogger,
+  type RequestLogOptions,
+} from './shared/middleware/index.js';
 
 /**
  * Everything the app needs from the outside world. server.ts passes real
@@ -29,6 +34,8 @@ export interface AppDependencies {
   /** Reverse proxies in front of the API, so req.ip is the real client. */
   trustProxy?: number;
   logger?: Pick<Console, 'error'>;
+  /** Access log; omitted in tests. */
+  requestLog?: RequestLogOptions;
 }
 
 /** Builds the Express app without listening, so tests can drive it with Supertest. */
@@ -37,6 +44,7 @@ export function createApp(deps: AppDependencies): Express {
   const app = express();
   app.set('trust proxy', deps.trustProxy ?? 0);
 
+  if (deps.requestLog) app.use(requestLogger(deps.requestLog));
   app.use(helmet());
   app.use(express.json({ limit: '100kb' }));
   app.use(cookieParser());

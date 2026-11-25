@@ -14,7 +14,9 @@ describe('loadEnv', () => {
       JWT_SECRET,
       JWT_TTL_MINUTES: 480,
       TRUST_PROXY: 0,
+      LOG_FORWARDED_FOR: false,
     });
+    expect(loadEnv({ ...base, LOG_FORWARDED_FOR: 'true' }).LOG_FORWARDED_FOR).toBe(true);
     expect(loadEnv({ ...base, PORT: '8080', TRUST_PROXY: '1' })).toMatchObject({
       PORT: 8080,
       TRUST_PROXY: 1,
