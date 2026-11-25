@@ -1,6 +1,6 @@
 # ADR-0006: Redis is optional, behind a cache interface
 
-**Status:** Accepted
+**Status:** Accepted. Caching designed, not yet built (see Outcome).
 
 ## Context
 Salary data changes rarely, while analytics endpoints aggregate across all 10k employees and may be requested often. Redis was considered. But at this scale PostgreSQL computes these aggregates in milliseconds, and adding infrastructure before measuring would be premature.
@@ -17,3 +17,11 @@ Salary data changes rarely, while analytics endpoints aggregate across all 10k e
 - ✅ Scaling out (several API instances) only needs `REDIS_URL` set, with no code change.
 - ❌ The in-memory adapter isn't shared between instances. That's fine for a single instance, and documented.
 - ❌ There's a short window of stale data if invalidation is missed. Reduced by the TTL and by tests on every mutation path.
+
+## Outcome (measured)
+- **Locally**, every insight endpoint stayed under the 300 ms p95 target (a full dashboard loads in about 200 ms), so the uncached baseline was kept, as decided.
+- **On Render's free tier** the same queries take about 2 s (a fraction of a CPU, a small shared Postgres). That's the CPU-bound trigger this ADR named. See [performance.md](../performance.md#production-render-free-instance).
+- **Decision:** don't add the cache yet.
+  - The first remedy is a paid instance (configuration, no code).
+  - If caching is then still needed, start with the in-memory adapter (one instance needs no Redis) and add Redis only when scaling out.
+

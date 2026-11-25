@@ -9,32 +9,28 @@ flowchart LR
     HR([HR Manager<br/>browser])
 
     subgraph Web["frontend/ — React SPA (Vercel)"]
-        UI[Pages & components<br/>shadcn/ui + Tailwind]
+        UI[Pages & components<br/>shadcn/ui + Tailwind + Recharts]
         Q[TanStack Query<br/>API client]
     end
 
-    subgraph Api["backend/ — Express API (Render/Railway)"]
-        MW[Middleware<br/>helmet · auth · validate]
+    subgraph Api["backend/ — Express API (Render)"]
+        MW[Middleware<br/>access log · helmet · auth · validate]
         MOD[Domain modules<br/>auth · employees · compensation<br/>analytics · reference]
         ERR[Error handler]
-        CACHE[[Cache interface]]
     end
 
-    DB[(PostgreSQL<br/>managed)]
-    REDIS[(Redis<br/>optional)]
+    DB[(PostgreSQL 16<br/>managed)]
 
     HR --> UI --> Q
-    Q -- "HTTPS /api/* (JSON, cookie)" --> MW --> MOD
+    Q -- "HTTPS /api/* (same origin via Vercel rewrite; JSON, cookie)" --> MW --> MOD
     MOD --> ERR
     MOD -- Prisma --> DB
-    MOD -.-> CACHE
-    CACHE -. "only if REDIS_URL set" .-> REDIS
 ```
 
 - **The frontend** is a static SPA. It holds no secrets and talks to the API only over HTTP.
 - **The backend** is a stateless Express app. All business rules and validation live here.
 - **PostgreSQL** is the single source of truth. Aggregations run in SQL, not in Node.
-- **The cache** is an interface. The default is in-memory/no-op, and Redis is used only when `REDIS_URL` is configured (see [ADR-0006](adr/0006-redis-optional.md)).
+- **No cache yet.** A cache for insight endpoints is designed (§7, [ADR-0006](adr/0006-redis-optional.md)) but deliberately not built; [performance.md](performance.md) records the measurements behind that decision.
 
 In production, the frontend proxies `/api/*` to the backend through a Vercel rewrite. Browser and API then share one origin, so the auth cookie stays first-party (`SameSite=Lax`) and CORS isn't needed.
 
@@ -45,29 +41,34 @@ One Git repo, two independent apps (each with its own `package.json`, no workspa
 ```
 employee-salary-management/
 ├── backend/
-│   ├── prisma/                 schema.prisma, migrations/, seed.ts
+│   ├── prisma/                 schema.prisma, migrations/, seed/ (pure generator + runner)
+│   ├── scripts/                benchmark.ts, seed-production.sh
 │   ├── src/
 │   │   ├── app.ts              express app (middleware + routes), no listen()
-│   │   ├── server.ts           listen()
+│   │   ├── server.ts           listen(), graceful shutdown
+│   │   ├── container.ts        composition root: repositories + services
 │   │   ├── config/             env parsing (Zod)
 │   │   ├── shared/
-│   │   │   ├── db/             Prisma client
-│   │   │   ├── cache/          Cache interface, memory + redis adapters
+│   │   │   ├── db/             Prisma client (pg driver adapter)
 │   │   │   ├── errors/         AppError subclasses
-│   │   │   ├── middleware/     auth, validate, errorHandler, notFound
-│   │   │   └── utils/          pagination, money, csv
+│   │   │   ├── middleware/     validate, errorHandler, notFound, requestLogger
+│   │   │   └── utils/          pagination, money, dates, csv, shared Zod schemas
 │   │   └── modules/
+│   │       ├── health/
 │   │       ├── auth/
 │   │       ├── employees/
 │   │       ├── compensation/
 │   │       ├── analytics/
 │   │       └── reference/      countries, departments, fx-rates
-│   └── tests/                  unit/ and api/
+│   └── tests/                  unit/, api/ (no DB), integration/ (Postgres)
 ├── frontend/
-│   └── src/  api/  components/  features/{employees,compensation,insights,auth}/  pages/  lib/
-├── docs/                       requirements, architecture, data model, ADRs, performance
+│   └── src/  components/ (ui/, charts/, layout/)  features/{auth,employees,insights,reference,settings}/
+│             hooks/  lib/ (api client, formatting, money)  pages/  routes.tsx
+├── docs/                       requirements, architecture, data model, ADRs, performance, deployment, screenshots
 ├── prompts/                    prompt-NN.md used to build each step
-├── docker-compose.yml          Postgres (+ optional Redis) for local dev
+├── .github/workflows/ci.yml    CI for both apps
+├── render.yaml                 Render Blueprint (API + PostgreSQL)
+├── docker-compose.yml          Postgres (+ optional Redis profile) for local dev
 └── README.md
 ```
 
@@ -78,7 +79,7 @@ Each module is a folder of layers. A layer exists only when it does real work (f
 modules/employees/
 ├── employee.routes.ts       wires paths → middleware → controller
 ├── employee.controller.ts   HTTP only: read req, call service, send res
-├── employee.service.ts      business rules, transactions, cache invalidation
+├── employee.service.ts      business rules, transactions
 ├── employee.repository.ts   Prisma queries only
 ├── employee.schema.ts       Zod schemas for body/query/params (+ inferred types)
 └── employee.types.ts        DTOs returned to the client
@@ -106,7 +107,6 @@ sequenceDiagram
     P->>D: SQL
     D-->>P: rows
     P-->>S: entity
-    S->>S: invalidate analytics cache
     S-->>C: DTO
     C-->>B: 200 JSON
     Note over R,C: Any thrown error goes to errorHandler
@@ -123,7 +123,7 @@ sequenceDiagram
   Unknown errors are logged and returned as a generic 500. Stack traces are never sent to the client.
 
 ## 5. Authentication
-- A single seeded **HR Manager** user. Passwords are hashed with **bcrypt**.
+- A single seeded **HR Manager** user. Passwords are hashed with **bcrypt** (cost 12).
 - `POST /api/auth/login` checks credentials and sets a **JWT** (HS256, `JWT_SECRET`, 8h expiry) in an `httpOnly`, `Secure` (in production), `SameSite=Lax` cookie. The token is never readable by JS.
 - **Protected by default:** public routes (`/api/health`, `/api/auth/login`, `/api/auth/logout`) are mounted first, then the `requireAuth` guard, then every other router. New modules are protected automatically. Unauthenticated requests to unknown routes get 401 rather than 404, so the route list isn't revealed.
 - Logout only clears the cookie, so it stays public: a user whose session has already expired can still log out cleanly.
@@ -160,7 +160,7 @@ All endpoints are under `/api`, return JSON unless noted, and require auth unles
 | GET | `/countries` | Countries with currency | – |
 | GET | `/departments` | Departments | – |
 | GET | `/fx-rates` | Static FX-to-USD rates | – |
-| PUT | `/fx-rates/:currency` | Update one rate (USD is fixed at 1; invalidates analytics cache once caching exists) | `{ rateToUsd }` |
+| PUT | `/fx-rates/:currency` | Update one rate (USD is fixed at 1); USD figures everywhere use it immediately | `{ rateToUsd }` |
 
 Insight endpoints reject unknown country/department values with 400 rather than returning empty results. Medians use `percentile_cont(0.5)` (the two middle values are averaged for even counts).
 
@@ -168,18 +168,23 @@ Sorting by `baseSalary` or `totalUsd` uses the **USD equivalent**, so the order 
 
 Analytics only count **ACTIVE** employees and their **current** compensation.
 
-## 7. Caching (optional, added last)
-- The interface is `Cache { get, set(key, value, ttl), invalidate(namespace) }`, with `MemoryCache`/`NoopCache` as the default and `RedisCache` used when `REDIS_URL` is set.
-- Only `analytics/*` responses are cached. The key is namespace + version + normalised query, and TTL is 10 minutes.
-- Writes to employees, compensation or FX rates bump the `analytics` namespace version, which invalidates every analytics entry in one step.
-- It only gets switched on after [performance.md](performance.md) shows a measured need (see [ADR-0006](adr/0006-redis-optional.md)).
+## 7. Caching (designed, not built)
+Not implemented, on purpose ([ADR-0006](adr/0006-redis-optional.md)). On a laptop every insight endpoint answers in about 100–250 ms. On Render's free instance (a fraction of one CPU) they take about 2 s, which is the trigger ADR-0006 names. The numbers and the decision are in [performance.md](performance.md). If it's added, the design is:
+- a `Cache { get, set(key, value, ttl), invalidate(namespace) }` interface: in-memory by default, Redis when `REDIS_URL` is set
+- only `analytics/*` responses are cached; the key is namespace + version + normalised query; TTL 10 minutes
+- writes to employees, compensation or FX rates bump the `analytics` namespace version, invalidating every entry in one step
 
 ## 8. Testing approach
-- **Unit (Vitest):** services with fake repositories. Covers compensation rules, pagination/sort parsing, money and FX conversion, CSV formatting, and cache invalidation.
-- **API without a database (Supertest):** `createApp()` with fake services. Covers health, auth and error handling.
-- **Integration (Supertest + Postgres):** the real services from the composition root (`src/container.ts`) against a separate `salary_management_test` database. A Vitest global setup creates and migrates it, and each test reloads hand-written fixtures with known values. Covers list filters/sort/pagination, export, create/update rules, and 404/409 cases.
-- **Frontend (Vitest + React Testing Library):** key components such as the filters, the pay-change form validation, and the history table.
-- Everything is deterministic: fixed seed data, no network calls, and an injected clock for "today".
+386 tests in total, all deterministic: fixed seed data, no network calls, an injected clock for "today".
+
+| Suite | Count | What it covers |
+|---|---:|---|
+| Backend unit (Vitest) | 179 | Services with fake repositories: compensation and pay-change rules, auth and tokens, query/sort parsing, SQL builders, money and FX maths, CSV escaping, bucket planning, env and seed config, request logging |
+| Backend API, no database (Supertest) | 18 | `createApp()` with fake services: health, auth flow, cookie flags, rate limiting (incl. behind proxies), error shapes |
+| Backend integration (Supertest + Postgres) | 82 | Real services from `src/container.ts` against a separate `salary_management_test` database (created and migrated by a Vitest global setup; hand-written fixtures with known values): filters, sorting, pagination, export, create/update, pay changes incl. a concurrent double-submit, insights with hand-computed expected values |
+| Frontend (Vitest + React Testing Library) | 107 | The real app routes with a mocked API: login and protected routes, list URL state, filters, search debounce, forms and server-error mapping, pay-change dialog, dashboard, insights currency rule, FX editing |
+
+CI runs all of them on every push and pull request (`.github/workflows/ci.yml`).
 
 ## 9. Configuration and operations
 - Access log: one JSON line per request (method, path without the query string, status, duration, client IP), skipped in tests.
@@ -189,3 +194,26 @@ Env vars are validated at startup with Zod, so the app fails fast on bad config:
 - backend: `DATABASE_URL`, `JWT_SECRET` (≥ 32 chars; the example placeholder is refused in production), `JWT_TTL_MINUTES` (default 480), `TRUST_PROXY` (number of proxies in front of the API, so rate limiting sees real client IPs; `4` in production: Vercel, Cloudflare and Render, measured as in [deployment.md](deployment.md)), `LOG_FORWARDED_FOR` (adds the raw `X-Forwarded-For` chain to access logs while calibrating), `PORT`, `NODE_ENV`
 - No CORS configuration: `/api` is same-origin in both environments (Vite dev-server proxy locally, Vercel rewrite in production).
 - frontend: `VITE_API_BASE_URL` (defaults to `/api`)
+
+## 10. Security
+**What is protected, and how**
+- **Authentication on everything except health, login and logout.** The guard sits in front of all other routers, so new modules are protected by default. Session tokens are signed (HS256) and checked on every request, and the user is re-read so a deleted account loses access immediately.
+- **Session cookie:** `HttpOnly` (no JavaScript access), `Secure` in production, `SameSite=Lax`, `Path=/api`. Because the browser only talks to the Vercel origin, the cookie is first-party and there is no CORS configuration to get wrong.
+- **Passwords:** bcrypt with cost 12. A wrong password and an unknown email get the same message and take the same time (unknown emails are checked against a dummy hash).
+- **Input:** every request part is validated with strict Zod schemas (unknown fields rejected); SQL values are always bound parameters; CSV export neutralises spreadsheet formulas.
+- **Errors:** clients get a fixed error shape. Stack traces and database messages never leave the server.
+- **Headers:** `helmet` on the API; on the frontend, a strict Content-Security-Policy (`script-src 'self'`), `X-Frame-Options: DENY`, `nosniff`, Referrer and Permissions policies.
+- **Secrets:** none in the repo or its history (checked). `JWT_SECRET` is generated by Render and must be at least 32 characters; the example value is refused in production. The production seed refuses the example password and requires an explicit opt-in.
+- **Login rate limit:** 10 failed attempts per client IP per 15 minutes. The client IP is resolved through the measured proxy chain (`TRUST_PROXY=4`).
+
+**Known risk (accepted for now)**
+- The Render URL is publicly reachable. A request sent straight to it, bypassing Vercel, can prepend fake `X-Forwarded-For` entries and choose its own apparent IP, which gets around the per-IP login limit.
+- **Why it's acceptable today:** all data sits behind authentication; bcrypt at cost 12 makes every guess expensive; and the HR password is at least 12 characters and chosen by a person, so guessing it isn't practical.
+
+**Future scope**
+1. **Per-account failed-login limit** (e.g. 10 failures per email per 15 minutes) alongside the per-IP one. Spoofed IPs then stop helping. Trade-off: an attacker could lock the HR Manager out of *new* logins for the window (existing sessions keep working). Bounded lockout is preferable to unlimited guessing.
+2. **Accept only traffic that comes through Vercel**, e.g. a secret header added by Vercel routing middleware and required by the API, so the Render URL is useless on its own.
+3. **Shared rate-limit store** (Redis). Counters are in memory per instance today: fine for one instance, wrong once there are several.
+4. **Network-level protection** (WAF, bot and DDoS protection) for volumetric attacks.
+5. **MFA for the HR account**, and alerts on repeated failed logins.
+

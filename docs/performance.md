@@ -64,7 +64,35 @@ All endpoints meet the p95 < 300 ms target. The distribution is the slowest beca
 - the dataset grows by about 10× (aggregates scale roughly linearly), or
 - many HR users load the dashboard at once (the aggregates are CPU-bound in Postgres).
 
-Both are plausible next steps, and the cache interface in ADR-0006 is designed for them. A later step will add it behind `REDIS_URL` and compare against these numbers.
+Both are plausible next steps, and the cache design in ADR-0006 is meant for them.
+
+## Production (Render free instance)
+
+Server-side durations from the API access log (`ms` field, excluding network), taken while loading the live app through Vercel right after a deploy:
+
+| Endpoint | Local (p50) | Render free |
+|---|---:|---:|
+| `GET /api/analytics/summary` | 73 ms | 1,609–1,955 ms |
+| `GET /api/analytics/by-country` | 83 ms | ~2,280 ms |
+| `GET /api/analytics/by-department` | 82 ms | 2,101–2,321 ms |
+| `GET /api/analytics/headcount-trend` | 26 ms | 13–277 ms |
+| `GET /api/employees` (default page) | 22 ms | 439–493 ms |
+| `GET /api/auth/me` | — | 169–204 ms |
+| `GET /api/fx-rates`, `/api/countries` | — | 5–9 ms |
+
+These are a handful of samples, not percentiles, but the gap is clear. Insight endpoints are **10–25× slower** on the free tier, so the **dashboard takes about 2–2.5 s** to fill, against the 300 ms target. Two causes:
+- The free web instance gets a fraction of one CPU.
+- The free PostgreSQL instance is small and shared; each insight query scans all ~45k pay components.
+
+Small lookups stay fast, which confirms the cost is the aggregation, not the network or the proxies.
+
+### What this means for caching (ADR-0006)
+This is the trigger ADR-0006 named: aggregates bound by CPU. Caching would help repeated dashboard loads, because the same few queries are asked again and again while the data rarely changes. **It still isn't built**, deliberately:
+1. **Cheapest fix first.** A paid instance (Render Starter and a basic Postgres plan) should bring this close to the local numbers. It's a configuration change, with no code to maintain.
+2. **If caching is added, Redis isn't needed for one instance.** The ADR's in-memory adapter with namespace-version invalidation removes the repeat cost. Redis only matters once there are several API instances.
+3. **Scope.** This step froze features; the measurement and the design are recorded so the next person can act on numbers rather than guesses.
+
+The first load after a write is always uncached, so caching doesn't remove the need for adequate hardware; it reduces the cost of repeat reads.
 
 ## Test suite
 Integration tests originally reset the database with `TRUNCATE ... RESTART IDENTITY`, which took 200–400 ms per test because Postgres recreates and fsyncs the table files. Switching to `DELETE` plus sequence restarts and a single `createMany` per table brought the reset to about 50 ms, and the integration suite from 35 s to about 12 s.
